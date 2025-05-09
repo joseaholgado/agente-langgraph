@@ -1,81 +1,82 @@
-# Agente Inteligente con LangGraph - Documentación
+# Agente Inteligente con LangGraph
 
-Este proyecto implementa un agente inteligente utilizando LangGraph que decide automáticamente entre buscar en documentos PDF locales o realizar búsquedas web para responder preguntas.
+Este repositorio contiene un **agente inteligente** desarrollado con LangGraph y LangChain que decide dinámicamente entre:
+
+* **Búsqueda en PDFs locales**
+* **Análisis de AST en formato JSON**
+* **Búsquedas web en tiempo real**
+
+---
 
 ## Estructura del Notebook
 
+Archivo principal: `langgraph_agente_busqueda_explicado.ipynb`
+
 ### 1. Configuración Inicial
-- **Archivo**: `langgraph_agente_busqueda_explicado.ipynb`
-- **Descripción**: Configura el entorno inicial cargando las variables de entorno necesarias y las dependencias básicas.
-- **Componentes principales**:
-  - Carga de API keys para OpenAI y Tavily
-  - Inicialización del modelo ChatOpenAI
 
-### 2. Búsqueda en PDFs
-- **Descripción**: Implementa la clase `BusquedaPDF` para manejar búsquedas en documentos PDF locales.
-- **Funcionalidades**:
-  - Carga de documentos PDF
-  - Fragmentación de texto
-  - Creación de embeddings usando HuggingFace
-  - Almacenamiento vectorial con FAISS
-  - Sistema de preguntas y respuestas con RetrievalQA
+* Carga de variables de entorno (`.env`).
+* Inicialización de la LLM de OpenAI (`ChatOpenAI`).
 
-### 3. Herramienta de Búsqueda Web
-- **Descripción**: Implementa la búsqueda web usando Tavily Search.
-- **Características**:
-  - Búsqueda en internet en tiempo real
-  - Procesamiento de resultados
-  - Integración con la API de Tavily
-  - Límite de 5 resultados por búsqueda
+### 2. Búsqueda en PDFs (`BusquedaPDF`)
 
-### 4. Configuración de LangGraph
-- **Descripción**: Define la lógica del agente usando LangGraph.
-- **Componentes**:
-  - Estado del agente (`AgentState`)
-  - Función de decisión para elegir herramienta
-  - Nodos para búsqueda en PDF y web
-  - Configuración del grafo de decisión
-  - Sistema de transiciones entre estados
+* **Carga**: `PyMuPDFLoader` para extraer texto de PDFs.
+* **Fragmentación**: `RecursiveCharacterTextSplitter` divide el contenido en chunks.
+* **Embeddings**: `HuggingFaceEmbeddings` crea vectores semánticos.
+* **Vectorstore**: `FAISS` almacena y recupera vectores.
+* **QA**: `RetrievalQA` responde consultas e incluye las fuentes.
 
-### 5. Interfaz Interactiva
-- **Descripción**: Implementa un chatbot interactivo para interactuar con el agente.
-- **Funcionalidades**:
-  - Loop interactivo de preguntas y respuestas
-  - Manejo de salida del programa
-  - Visualización de resultados y herramienta utilizada
+### 3. Análisis de AST JSON (`BusquedaJSON`)
 
-## Características Especiales
+* Lee uno o varios archivos JSON que representan un AST.
+* Construye un prompt que incluye el AST completo.
+* El modelo lista las funciones (nombre y parámetros) y explica su propósito.
 
-1. **Decisión Inteligente**: El agente decide automáticamente qué herramienta usar basándose en la pregunta.
-2. **Búsqueda en PDFs Mejorada**:
-   - Manejo de errores robusto
-   - Información detallada de fuentes
-   - Fragmentación inteligente de documentos
-3. **Búsqueda Web Optimizada**:
-   - Resultados filtrados y relevantes
-   - Integración con Tavily para búsquedas precisas
+### 4. Búsqueda en Internet (`busqueda_internet`)
+
+* Integra `TavilySearch` para obtener hasta 5 resultados.
+* Procesa y formatea contenido relevante.
+
+### 5. Agente LangGraph
+
+* **Estado**: `AgentState` con campos `input`, `tool_used`, `output`, `next_step`.
+* **Decisión**: regla por palabras clave para elegir PDF, JSON o web.
+* **Nodos**: `decision`, `usar_pdf`, `usar_json`, `usar_web`, `fin`.
+* **Ejecución**: invocación del `AgentExecutor` para respuestas interactivas.
+
+---
 
 ## Requisitos
-- Python 3.x
-- Dependencias listadas en el notebook:
-  - langchain
-  - langgraph
-  - PyMuPDF
-  - FAISS
-  - HuggingFace Transformers
-  - python-dotenv
+
+* Python 3.7+
+* Dependencias (instalar con `pip install -r requirements.txt`):
+
+  * langchain
+  * langgraph
+  * PyMuPDF
+  * faiss-cpu
+  * transformers
+  * python-dotenv
+
+---
 
 ## Uso
-1. Configura las variables de entorno en un archivo `.env`:
-   ```
+
+1. Crea un fichero `.env` con:
+
+   ```bash
    API_KEY=tu_api_key_openai
    TAVILY_API_KEY=tu_api_key_tavily
    ```
-2. Asegúrate de tener los PDFs necesarios en el directorio del proyecto
-3. Ejecuta el notebook celda por celda
-4. Interactúa con el chatbot en la última celda
+2. Añade tus archivos PDF y el JSON del AST en el directorio del proyecto.
+3. Abre el notebook `langgraph_agente_busqueda_explicado.ipynb` en Jupyter.
+4. Ejecuta celda por celda y, al final, interactúa con el agente.
 
-## Notas Importantes
-- El agente siempre usará la búsqueda en PDF cuando se mencione "Windsurf"
-- La búsqueda web se utiliza para información general y actualizada
-- Los resultados incluyen las fuentes de información utilizadas
+---
+
+## Características Clave
+
+* **Selección automática** de la herramienta adecuada.
+* **Respuestas basadas en contexto**: muestra siempre las fuentes (PDF, ruta JSON o web).
+* **Explicación de AST**: identifica y describe funciones en tu código.
+
+
