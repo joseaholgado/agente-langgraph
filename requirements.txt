@@ -6,3 +6,5 @@ PyMuPDF
 faiss-cpu
 transformers
 python-dotenv
+tree_sitter
+json
