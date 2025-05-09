@@ -1,0 +1,8 @@
+langchain
+langgraph
+langchain-openai
+langchain-tavily
+PyMuPDF
+faiss-cpu
+transformers
+python-dotenv
