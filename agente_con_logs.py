@@ -11,6 +11,7 @@ from langchain.vectorstores import FAISS
 from langchain.chains import RetrievalQA
 from langchain_tavily import TavilySearch
 from langchain.tools import Tool
+from parser import crear_ast
 
 # Configuración inicial
 load_dotenv()
@@ -29,30 +30,31 @@ def decide_tool(state: AgentState) -> AgentState:
     pregunta = state["input"]
     print("\n🤔 PROCESO DE DECISIÓN")
     print(f"Analizando la pregunta: '{pregunta}'")
-    
+
     prompt = [
         SystemMessage(content="""Eres un asistente que elige la mejor herramienta según la consulta.
         Explica tu razonamiento paso a paso antes de decidir."""),
         HumanMessage(content=f'''
         Dada la siguiente pregunta: "{pregunta}", ¿cuál herramienta debería usar?
-        
+
         **NOTA**
         - Siempre que hables de Windsurf me tienes que leer el pdf
         - Explica tu razonamiento
-        
+        - Si la pregunta tiene que ver con análisis de código fuente, parsing o funciones, usa el analizador de AST.
+
         Al final, responde solo con el nombre exacto de la herramienta.
         ''')
     ]
-    
+
     respuesta_completa = model(prompt).content.strip()
     print("\n💭 Razonamiento del agente:")
     print(respuesta_completa)
-    
+
     # Extraer la decisión final (última línea)
     decision = respuesta_completa.split('\n')[-1].lower()
-    
+
     print(f"\n🎯 Decisión final: {decision}")
-    
+
     if "pdf" in decision:
         return {
             "next_step": "usar_pdf",
@@ -61,6 +63,11 @@ def decide_tool(state: AgentState) -> AgentState:
     elif "internet" in decision:
         return {
             "next_step": "usar_web",
+            "thought_process": [respuesta_completa]
+        }
+    elif "codigo" in decision or "ast" in decision:
+        return {
+            "next_step": "user_ast",
             "thought_process": [respuesta_completa]
         }
     else:
@@ -80,21 +87,21 @@ class BusquedaPDF:
                 loader = PyMuPDFLoader(path)
                 docs.extend(loader.load())
                 print(f"✅ Cargado: {path}")
-            
+
             print("\n🔄 Procesando documentos...")
             splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
             self.docs_fragmentados = splitter.split_documents(docs)
             print(f"📝 Fragmentos creados: {len(self.docs_fragmentados)}")
-            
+
             print("\n🧠 Creando embeddings...")
             self.embeddings = HuggingFaceEmbeddings(
                 model_name="sentence-transformers/all-MiniLM-L6-v2",
                 model_kwargs={'device': 'cpu'}
             )
-            
+
             print("🔍 Construyendo índice FAISS...")
             self.vectorstore = FAISS.from_documents(self.docs_fragmentados, self.embeddings)
-            
+
             print("⚙️ Configurando cadena de QA...")
             self.qa_chain = RetrievalQA.from_chain_type(
                 llm=model,
@@ -103,7 +110,7 @@ class BusquedaPDF:
                 return_source_documents=True
             )
             print("✨ Sistema de búsqueda PDF listo!")
-            
+
         except Exception as e:
             print(f"❌ Error en inicialización: {str(e)}")
             raise
@@ -114,20 +121,20 @@ class BusquedaPDF:
         try:
             print("⏳ Buscando documentos relevantes...")
             result = self.qa_chain.invoke({"query": query})
-            
+
             if not result["source_documents"]:
                 print("❌ No se encontraron documentos relevantes")
                 return "No se encontró información relevante en los documentos."
-            
+
             print("\n📑 Documentos encontrados:")
             sources = []
             for doc in result["source_documents"]:
                 source = f"- {doc.metadata['source']} (página {doc.metadata.get('page', 'N/A')})"
                 sources.append(source)
                 print(source)
-            
+
             return f"{result['result']}\n\nFuentes:\n" + "\n".join(sources)
-            
+
         except Exception as e:
             print(f"⚠️ Error en búsqueda: {str(e)}")
             return "Error al consultar los documentos."
@@ -146,15 +153,15 @@ def usar_pdf(state: AgentState) -> AgentState:
 def busqueda_internet(query: str) -> str:
     print(f"\n🌐 BÚSQUEDA EN INTERNET")
     print(f"Consulta: '{query}'")
-    
+
     print("⏳ Consultando Tavily...")
     output = tavily_tool.invoke({"query": query})
     resultados = output.get("results", [])
-    
+
     if not resultados:
         print("❌ No se encontraron resultados")
         return "No se encontraron resultados relevantes en la búsqueda en línea."
-    
+
     print(f"✅ Encontrados {len(resultados)} resultados")
     contenido = "\n\n".join([res["content"] for res in resultados[:3] if "content" in res])
     return contenido
@@ -179,6 +186,9 @@ buscador_pdf = BusquedaPDF(rutas_pdfs)
 print("\n🌐 Configurando búsqueda web...")
 tavily_tool = TavilySearch(max_results=5, topic="general")
 
+print("\nConfigurando creación de AST")
+crear_ast = crear_ast.GenerarAST("./agente_con_logs.py")
+
 tool_pdf = Tool(
     name="busqueda_pdf",
     func=buscador_pdf.run,
@@ -189,6 +199,12 @@ tool_web = Tool(
     name="busqueda_internet",
     func=busqueda_internet,
     description="Realiza búsquedas en Internet para información actualizada."
+)
+
+tool_ast = Tool(
+    name="crear_ast",
+    func=crear_ast,
+    description="Crea un AST personalizado en json"
 )
 
 # Configuración del grafo
@@ -227,11 +243,11 @@ print("Escriba 'salir' para terminar.")
 
 while True:
     pregunta = input("\n👤 Usuario: ")
-    
+
     if pregunta.lower() in ["salir", "exit", "quit"]:
         print("\n👋 Fin de la conversación.")
         break
-    
+
     print("\n🤖 Procesando...")
     entrada_agente = {
         "input": pregunta,
@@ -239,9 +255,9 @@ while True:
         "output": "",
         "thought_process": []
     }
-    
+
     resultado = agent_executor.invoke(entrada_agente)
-    
+
     print("\n🎯 RESULTADO FINAL")
     print("=" * 50)
     print("💭 Proceso de pensamiento:")
