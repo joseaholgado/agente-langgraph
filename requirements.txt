@@ -1,0 +1,9 @@
+python-dotenv
+langchain
+langchain-openai
+langgraph
+langchain-tavily
+faiss-cpu
+sentence-transformers
+pymupdf
+tree_sitter
